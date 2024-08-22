@@ -4,6 +4,7 @@ import pdfkit
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse, unquote
 import re
+from PyPDF2 import PdfMerger
 
 visited = set()
 
@@ -25,7 +26,7 @@ def generate_breadcrumbs(url, base_url):
     breadcrumbs = ' > '.join(unquote(part.replace('-', ' ').title()) for part in path_parts)
     return f"{parsed_url.netloc} > {breadcrumbs}"
 
-def save_page_as_pdf(url, base_url, output_folder):
+def save_page_as_pdf(url, base_url, output_folder, pdf_files):
     # Verificar si ya hemos visitado esta URL
     if url in visited:
         return
@@ -59,6 +60,7 @@ def save_page_as_pdf(url, base_url, output_folder):
     try:
         pdfkit.from_url(url, output_file, configuration=config)
         print(f"El PDF de la página se ha guardado en {output_file}")
+        pdf_files.append(output_file)  # Agregar el PDF generado a la lista
     except Exception as e:
         print(f"Error al generar el PDF para {url}: {e}")
 
@@ -68,7 +70,7 @@ def save_page_as_pdf(url, base_url, output_folder):
         full_url = urljoin(base_url, href)
         # Filtrar solo los enlaces que pertenecen al dominio especificado
         if full_url.startswith('https://help.kriter.net/secciones/erp'):
-            save_page_as_pdf(full_url, base_url, output_folder)
+            save_page_as_pdf(full_url, base_url, output_folder, pdf_files)
 
 def save_all_pages_to_files(url, output_folder):
     base_url = url
@@ -77,8 +79,36 @@ def save_all_pages_to_files(url, output_folder):
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
 
+    # Lista para almacenar los nombres de los archivos PDF generados
+    pdf_files = []
+
     # Iniciar el proceso de generación de PDFs
-    save_page_as_pdf(url, base_url, output_folder)
+    save_page_as_pdf(url, base_url, output_folder, pdf_files)
+
+    # Fusionar todos los archivos PDF en uno solo
+    merge_pdfs(pdf_files)
+
+def merge_pdfs(pdf_files):
+    # Crear la carpeta "gpt-doc" si no existe
+    output_folder = "gpt-doc"
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+
+    # Nombre del archivo PDF final
+    merged_pdf_path = os.path.join(output_folder, "kriter-help-database.pdf")
+
+    # Inicializar el objeto PdfMerger
+    merger = PdfMerger()
+
+    # Agregar cada archivo PDF al merger
+    for pdf in pdf_files:
+        merger.append(pdf)
+
+    # Escribir el PDF fusionado en el archivo de salida
+    merger.write(merged_pdf_path)
+    merger.close()
+
+    print(f"Todos los PDFs han sido fusionados en {merged_pdf_path}")
 
 if __name__ == "__main__":
     url = "https://help.kriter.net/secciones/erp"
